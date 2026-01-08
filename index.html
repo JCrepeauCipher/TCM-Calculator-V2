@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CipherHealth TCM ROI Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #5f0957;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        
+        /* Loading Spinner */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #5f0957;
+            width: 20px;
+            height: 20px;
+            -webkit-animation: spin 1s linear infinite; /* Safari */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="bg-[#5f0957] text-white p-2 rounded-lg">
+                    <i class="fa-solid fa-calculator"></i>
+                </div>
+                <h1 class="text-xl font-bold text-slate-900 tracking-tight">CipherHealth <span class="text-[#5f0957]">ROI Calculator</span></h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-sm text-slate-500 hidden sm:block">Transitional Care Management (TCM)</div>
+                <button onclick="generatePDF()" id="exportBtn" class="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-lg">
+                    <i class="fa-solid fa-file-pdf"></i>
+                    <span>Export to PDF</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Left Column: Inputs -->
+            <div class="lg:col-span-4 space-y-6">
+                
+                <!-- Section 1: Volume & Reimbursement -->
+                <div class="bg-white rounded-xl card-shadow p-6 border border-slate-100">
+                    <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-hospital-user text-[#5f0957]"></i> Patient Volume
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Monthly Discharges</label>
+                            <input type="number" id="monthlyDischarges" value="500" class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-[#5f0957] focus:border-[#5f0957] transition" oninput="calculateROI()">
+                            <p class="text-xs text-slate-500 mt-1">Patients eligible for TCM.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Avg. TCM Reimbursement ($)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2 text-slate-400">$</span>
+                                <input type="number" id="tcmReimbursement" value="260" class="w-full pl-7 p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-[#5f0957] focus:border-[#5f0957] transition" oninput="calculateROI()">
+                            </div>
+                            <p class="text-xs text-slate-500 mt-1">Weighted avg of 99495 (~$220) & 99496 (~$299).</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Labor Assumptions -->
+                <div class="bg-white rounded-xl card-shadow p-6 border border-slate-100">
+                    <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-user-nurse text-[#5f0957]"></i> Labor Costs
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Staff Hourly Wage ($)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2 text-slate-400">$</span>
+                                <input type="number" id="hourlyWage" value="45" class="w-full pl-7 p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-[#5f0957] focus:border-[#5f0957] transition" oninput="calculateROI()">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Minutes per Manual Attempt</label>
+                            <input type="number" id="minsPerCall" value="10" class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-[#5f0957] focus:border-[#5f0957] transition" oninput="calculateROI()">
+                            <p class="text-xs text-slate-500 mt-1">Time to dial, leave voicemail, or document.</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Avg. Attempts per Patient</label>
+                            <input type="number" id="avgAttempts" value="2.5" step="0.1" class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-[#5f0957] focus:border-[#5f0957] transition" oninput="calculateROI()">
+                            <p class="text-xs text-slate-500 mt-1">Calls made before reaching patient or giving up.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Reach Rates -->
+                <div class="bg-white rounded-xl card-shadow p-6 border border-slate-100">
+                    <h2 class="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-tower-cell text-[#5f0957]"></i> Reach Rates
+                    </h2>
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="text-sm font-medium text-slate-700">Current Manual Reach Rate</label>
+                                <span class="text-sm font-bold text-slate-600" id="currentReachDisplay">40%</span>
+                            </div>
+                            <input type="range" id="currentReach" min="0" max="100" value="40" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#5f0957] slider-thumb" oninput="calculateROI()">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="text-sm font-medium text-[#5f0957]">Projected Automated Reach</label>
+                                <span class="text-sm font-bold text-[#5f0957]" id="projectedReachDisplay">85%</span>
+                            </div>
+                            <input type="range" id="projectedReach" min="0" max="100" value="85" class="w-full h-2 bg-[#5f0957]/20 rounded-lg appearance-none cursor-pointer accent-[#5f0957] slider-thumb" oninput="calculateROI()">
+                            <p class="text-xs text-slate-500 mt-2">CipherHealth typically achieves 70-90%+ reach rates.</p>
+                        </div>
+                        
+                        <div class="border-t pt-4">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Conversion to Visit (%)</label>
+                            <input type="number" id="conversionRate" value="80" class="w-full p-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-[#5f0957] focus:border-[#5f0957] transition" oninput="calculateROI()">
+                            <p class="text-xs text-slate-500 mt-1">% of reached patients who attend the billable face-to-face visit.</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Results -->
+            <div class="lg:col-span-8 space-y-6">
+                
+                <!-- Top Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Labor Savings Card -->
+                    <div class="bg-white p-6 rounded-xl card-shadow border-l-4 border-[#00B4A4] relative overflow-hidden">
+                        <div class="absolute right-0 top-0 p-4 opacity-5">
+                            <i class="fa-solid fa-clock fa-4x"></i>
+                        </div>
+                        <h3 class="text-slate-500 text-sm font-medium uppercase tracking-wide">
+                            Annual Labor Savings
+                        </h3>
+                        <div class="mt-2 flex items-baseline gap-2">
+                            <span class="text-3xl font-bold text-slate-900" id="annualLaborSavings">$0</span>
+                            <span class="text-sm text-[#00B4A4] font-medium" id="hoursSaved">0 hrs saved</span>
+                        </div>
+                        <p class="mt-2 text-sm text-slate-600">
+                            By automating initial outreach, staff only manage exceptions.
+                        </p>
+                    </div>
+
+                    <!-- Revenue Opportunity Card -->
+                    <div class="bg-white p-6 rounded-xl card-shadow border-l-4 border-[#5f0957] relative overflow-hidden">
+                        <div class="absolute right-0 top-0 p-4 opacity-5">
+                            <i class="fa-solid fa-chart-line fa-4x"></i>
+                        </div>
+                        <h3 class="text-slate-500 text-sm font-medium uppercase tracking-wide">
+                            Annual Net Revenue Increase
+                        </h3>
+                        <div class="mt-2 flex items-baseline gap-2">
+                            <span class="text-3xl font-bold text-slate-900" id="annualRevIncrease">$0</span>
+                        </div>
+                        <p class="mt-2 text-sm text-slate-600">
+                            Driven by <span id="additionalPatients" class="font-bold">0</span> additional billable patients per year.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Main Chart Area -->
+                <div class="bg-white p-6 rounded-xl card-shadow border border-slate-100">
+                    <h3 class="text-lg font-semibold text-slate-800 mb-6">Financial Impact Analysis</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="w-full h-64">
+                            <h4 class="text-sm font-medium text-slate-500 text-center mb-2">Annual Labor Costs</h4>
+                            <canvas id="laborChart"></canvas>
+                        </div>
+                        <div class="w-full h-64">
+                            <h4 class="text-sm font-medium text-slate-500 text-center mb-2">Annual TCM Revenue</h4>
+                            <canvas id="revenueChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Breakdown Table -->
+                <div class="bg-white overflow-hidden rounded-xl card-shadow border border-slate-100">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Metric (Monthly)</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Current (Manual)</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-[#5f0957] uppercase tracking-wider">With CipherHealth</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-[#00B4A4] uppercase tracking-wider">Variance</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-200" id="breakdownTable">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Total ROI Footer -->
+                <div class="bg-[#5f0957] rounded-xl p-8 text-white shadow-lg flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div>
+                        <h2 class="text-2xl font-bold">Total Annual Financial Benefit</h2>
+                        <p class="text-white/80 mt-1">Labor Savings + Increased Reimbursement Revenue</p>
+                    </div>
+                    <div class="text-4xl font-bold tracking-tight bg-black/20 px-6 py-3 rounded-lg border border-white/10" id="totalAnnualImpact">
+                        $0
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 
+      PDF TEMPLATE
+    -->
+    <div id="pdf-report-container" class="hidden fixed inset-0 z-[50] bg-slate-100 overflow-y-auto flex items-start justify-center pt-10 pb-10">
+        <!-- The actual paper document: 720px width matches safe printable area -->
+        <div class="bg-white w-[720px] min-h-[1000px] p-8 shadow-2xl text-slate-800 border border-slate-200">
+            
+            <!-- PDF Header -->
+            <div class="flex justify-between items-end border-b-2 border-slate-200 pb-4 mb-8">
+                <div>
+                    <h1 class="text-3xl font-bold text-slate-900">ROI Analysis</h1>
+                    <p class="text-slate-500 mt-1">Transitional Care Management (TCM)</p>
+                </div>
+                <div class="text-right">
+                    <div class="flex items-center gap-2 justify-end mb-1">
+                        <div class="bg-[#5f0957] text-white p-1 rounded">
+                            <i class="fa-solid fa-calculator"></i>
+                        </div>
+                        <span class="font-bold text-xl tracking-tight">CipherHealth</span>
+                    </div>
+                    <p class="text-sm text-slate-400" id="reportDate">Date: </p>
+                </div>
+            </div>
+
+            <!-- Executive Summary -->
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-6 mb-8">
+                <h2 class="text-lg font-bold text-slate-800 mb-4 uppercase tracking-wider border-b border-slate-200 pb-2">Executive Summary</h2>
+                <div class="grid grid-cols-2 gap-8">
+                    <div>
+                        <p class="text-sm text-slate-500 mb-1">Projected Annual Benefit</p>
+                        <p class="text-4xl font-bold text-[#5f0957]" id="pdfTotalBenefit">$0</p>
+                        <p class="text-xs text-slate-400 mt-2">Combined Labor Savings & Revenue Growth</p>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex justify-between border-b border-slate-200 pb-1">
+                            <span class="text-sm text-slate-600">Annual Labor Savings</span>
+                            <span class="font-bold text-[#00B4A4]" id="pdfLaborSavings">$0</span>
+                        </div>
+                        <div class="flex justify-between border-b border-slate-200 pb-1">
+                            <span class="text-sm text-slate-600">Annual Revenue Increase</span>
+                            <span class="font-bold text-[#5f0957]" id="pdfRevIncrease">$0</span>
+                        </div>
+                        <div class="flex justify-between pb-1">
+                            <span class="text-sm text-slate-600">Staff Hours Saved</span>
+                            <span class="font-bold text-slate-800" id="pdfHoursSaved">0 hrs</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section (Images) -->
+            <div class="mb-8">
+                <h2 class="text-lg font-bold text-slate-800 mb-4 uppercase tracking-wider border-b border-slate-200 pb-2">Financial Projections</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="border border-slate-100 rounded p-2">
+                        <h3 class="text-center text-sm font-semibold text-slate-500 mb-2">Annual Labor Costs</h3>
+                        <img id="pdfLaborChartImg" class="w-full h-auto block">
+                    </div>
+                    <div class="border border-slate-100 rounded p-2">
+                        <h3 class="text-center text-sm font-semibold text-slate-500 mb-2">Annual TCM Revenue</h3>
+                        <img id="pdfRevChartImg" class="w-full h-auto block">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assumptions & Table -->
+            <div class="grid grid-cols-1 gap-8">
+                
+                <!-- Assumptions List -->
+                <div class="mb-4">
+                     <h2 class="text-lg font-bold text-slate-800 mb-4 uppercase tracking-wider border-b border-slate-200 pb-2">Analysis Assumptions</h2>
+                     <div class="grid grid-cols-3 gap-4 text-sm">
+                         <div class="bg-white p-3 border border-slate-200 rounded">
+                             <span class="block text-xs text-slate-400 uppercase">Monthly Volume</span>
+                             <span class="block font-bold text-slate-800" id="pdfVol">0</span>
+                         </div>
+                         <div class="bg-white p-3 border border-slate-200 rounded">
+                             <span class="block text-xs text-slate-400 uppercase">Reimbursement</span>
+                             <span class="block font-bold text-slate-800" id="pdfReimb">$0</span>
+                         </div>
+                         <div class="bg-white p-3 border border-slate-200 rounded">
+                             <span class="block text-xs text-slate-400 uppercase">Wage</span>
+                             <span class="block font-bold text-slate-800" id="pdfWage">$0/hr</span>
+                         </div>
+                         <div class="bg-white p-3 border border-slate-200 rounded">
+                             <span class="block text-xs text-slate-400 uppercase">Manual Reach</span>
+                             <span class="block font-bold text-slate-800" id="pdfManualReach">0%</span>
+                         </div>
+                         <div class="bg-white p-3 border border-slate-200 rounded">
+                             <span class="block text-xs text-slate-400 uppercase">Auto Reach</span>
+                             <span class="block font-bold text-[#5f0957]" id="pdfAutoReach">0%</span>
+                         </div>
+                         <div class="bg-white p-3 border border-slate-200 rounded">
+                             <span class="block text-xs text-slate-400 uppercase">Conversion</span>
+                             <span class="block font-bold text-slate-800" id="pdfConv">0%</span>
+                         </div>
+                     </div>
+                </div>
+
+                <!-- Detail Table -->
+            <div>
+                <h2 class="text-lg font-bold text-slate-800 mb-2 uppercase tracking-wider border-b border-slate-200 pb-2">Monthly Breakdown</h2>
+                <table class="w-full text-sm text-left text-slate-600">
+                    <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                        <tr>
+                            <th class="px-4 py-2">Metric</th>
+                            <th class="px-4 py-2">Manual</th>
+                            <th class="px-4 py-2 text-[#5f0957]">Automated</th>
+                            <th class="px-4 py-2 text-[#00B4A4]">Variance</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pdfTableBody" class="divide-y divide-slate-200 border-b border-slate-200">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="mt-8 text-center text-xs text-slate-400 border-t border-slate-100 pt-4">
+                <p>Generated by CipherHealth ROI Calculator • www.cipherhealth.com</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Chart Initialization
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                onComplete: function() {
+                    // Animation complete
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(context.parsed.y);
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toLocaleString(); // Compact currency
+                        }
+                    }
+                }
+            }
+        };
+
+        const laborCtx = document.getElementById('laborChart').getContext('2d');
+        let laborChart = new Chart(laborCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Manual Process', 'CipherHealth'],
+                datasets: [{
+                    label: 'Annual Cost',
+                    data: [0, 0],
+                    backgroundColor: ['#94a3b8', '#5f0957'],
+                    borderRadius: 6,
+                    barPercentage: 0.6
+                }]
+            },
+            options: commonOptions
+        });
+
+        const revCtx = document.getElementById('revenueChart').getContext('2d');
+        let revenueChart = new Chart(revCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Manual Process', 'CipherHealth'],
+                datasets: [{
+                    label: 'Annual Revenue',
+                    data: [0, 0],
+                    backgroundColor: ['#94a3b8', '#5f0957'],
+                    borderRadius: 6,
+                    barPercentage: 0.6
+                }]
+            },
+            options: commonOptions
+        });
+
+        // Global state for calculations
+        let calcState = {};
+
+        function calculateROI() {
+            // 1. Get Inputs
+            const volume = parseFloat(document.getElementById('monthlyDischarges').value) || 0;
+            const reimbursement = parseFloat(document.getElementById('tcmReimbursement').value) || 0;
+            const wage = parseFloat(document.getElementById('hourlyWage').value) || 0;
+            const minsPerCall = parseFloat(document.getElementById('minsPerCall').value) || 0;
+            const attempts = parseFloat(document.getElementById('avgAttempts').value) || 0;
+            
+            const currentReachPct = parseFloat(document.getElementById('currentReach').value) / 100;
+            const projectedReachPct = parseFloat(document.getElementById('projectedReach').value) / 100;
+            const conversionPct = parseFloat(document.getElementById('conversionRate').value) / 100;
+
+            // Update range displays
+            document.getElementById('currentReachDisplay').innerText = Math.round(currentReachPct * 100) + '%';
+            document.getElementById('projectedReachDisplay').innerText = Math.round(projectedReachPct * 100) + '%';
+
+            // 2. Labor Calculations
+            const manualHoursMonthly = (volume * attempts * minsPerCall) / 60;
+            const manualLaborCostMonthly = manualHoursMonthly * wage;
+
+            const exceptionRate = 0.20; 
+            const automatedHoursMonthly = (volume * exceptionRate * minsPerCall) / 60; 
+            const automatedLaborCostMonthly = automatedHoursMonthly * wage;
+
+            const laborSavingsMonthly = manualLaborCostMonthly - automatedLaborCostMonthly;
+
+            // 3. Revenue Calculations
+            const patientsBilledManual = volume * currentReachPct * conversionPct;
+            const revenueManual = patientsBilledManual * reimbursement;
+
+            const patientsBilledAuto = volume * projectedReachPct * conversionPct;
+            const revenueAuto = patientsBilledAuto * reimbursement;
+
+            const revenueIncreaseMonthly = revenueAuto - revenueManual;
+
+            // 4. Annualizing
+            const annualLaborSavings = laborSavingsMonthly * 12;
+            const annualRevIncrease = revenueIncreaseMonthly * 12;
+            const totalBenefit = annualLaborSavings + annualRevIncrease;
+            const annualHoursSaved = (manualHoursMonthly - automatedHoursMonthly) * 12;
+            const additionalPatients = (patientsBilledAuto - patientsBilledManual) * 12;
+
+            // Save state for PDF generation
+            calcState = {
+                volume, reimbursement, wage, currentReachPct, projectedReachPct, conversionPct,
+                annualLaborSavings, annualRevIncrease, totalBenefit, annualHoursSaved,
+                manualHoursMonthly, automatedHoursMonthly, revenueManual, revenueAuto, revenueIncreaseMonthly
+            };
+
+            // 5. Update DOM
+            const currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+            
+            document.getElementById('annualLaborSavings').innerText = currencyFmt.format(annualLaborSavings);
+            document.getElementById('hoursSaved').innerText = Math.round(annualHoursSaved).toLocaleString() + ' hrs saved';
+            
+            document.getElementById('annualRevIncrease').innerText = currencyFmt.format(annualRevIncrease);
+            document.getElementById('additionalPatients').innerText = Math.round(additionalPatients).toLocaleString();
+            
+            document.getElementById('totalAnnualImpact').innerText = currencyFmt.format(totalBenefit);
+
+            // Update Charts
+            laborChart.data.datasets[0].data = [manualLaborCostMonthly * 12, automatedLaborCostMonthly * 12];
+            laborChart.update();
+
+            revenueChart.data.datasets[0].data = [revenueManual * 12, revenueAuto * 12];
+            revenueChart.update();
+
+            // Update Table
+            const tableHTML = `
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Reach Rate</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${Math.round(currentReachPct*100)}%</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-[#5f0957] font-medium">${Math.round(projectedReachPct*100)}%</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-[#00B4A4]">+${Math.round((projectedReachPct - currentReachPct)*100)}%</td>
+                </tr>
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Successful Contacts</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${Math.round(volume * currentReachPct)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-[#5f0957] font-medium">${Math.round(volume * projectedReachPct)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-[#00B4A4]">+${Math.round((volume * projectedReachPct) - (volume * currentReachPct))}</td>
+                </tr>
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Staff Hours Used</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${Math.round(manualHoursMonthly)} hrs</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-[#5f0957] font-medium">${Math.round(automatedHoursMonthly)} hrs</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-[#00B4A4]">-${Math.round(manualHoursMonthly - automatedHoursMonthly)} hrs</td>
+                </tr>
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Monthly Revenue</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${currencyFmt.format(revenueManual)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-[#5f0957] font-medium">${currencyFmt.format(revenueAuto)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-[#00B4A4]">+${currencyFmt.format(revenueIncreaseMonthly)}</td>
+                </tr>
+            `;
+            document.getElementById('breakdownTable').innerHTML = tableHTML;
+        }
+
+        // PDF Generation
+        async function generatePDF() {
+            const btn = document.getElementById('exportBtn');
+            const originalBtnText = btn.innerHTML;
+            btn.innerHTML = `<div class="loader mr-2"></div> Generating...`;
+            btn.disabled = true;
+
+            const currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+            // 1. Populate Hidden Template
+            document.getElementById('reportDate').innerText = 'Date: ' + new Date().toLocaleDateString();
+            
+            // Executive Summary
+            document.getElementById('pdfTotalBenefit').innerText = currencyFmt.format(calcState.totalBenefit);
+            document.getElementById('pdfLaborSavings').innerText = currencyFmt.format(calcState.annualLaborSavings);
+            document.getElementById('pdfRevIncrease').innerText = currencyFmt.format(calcState.annualRevIncrease);
+            document.getElementById('pdfHoursSaved').innerText = Math.round(calcState.annualHoursSaved).toLocaleString() + ' hrs';
+
+            // Assumptions
+            document.getElementById('pdfVol').innerText = calcState.volume;
+            document.getElementById('pdfReimb').innerText = '$' + calcState.reimbursement;
+            document.getElementById('pdfWage').innerText = '$' + calcState.wage + '/hr';
+            document.getElementById('pdfManualReach').innerText = Math.round(calcState.currentReachPct * 100) + '%';
+            document.getElementById('pdfAutoReach').innerText = Math.round(calcState.projectedReachPct * 100) + '%';
+            document.getElementById('pdfConv').innerText = Math.round(calcState.conversionPct * 100) + '%';
+
+            // Table (Simplified for PDF)
+            const tableHTML = `
+                <tr>
+                    <td class="px-4 py-2 border-b">Reach Rate</td>
+                    <td class="px-4 py-2 border-b">${Math.round(calcState.currentReachPct*100)}%</td>
+                    <td class="px-4 py-2 border-b font-semibold text-[#5f0957]">${Math.round(calcState.projectedReachPct*100)}%</td>
+                    <td class="px-4 py-2 border-b text-[#00B4A4]">+${Math.round((calcState.projectedReachPct - calcState.currentReachPct)*100)}%</td>
+                </tr>
+                <tr>
+                    <td class="px-4 py-2 border-b">Successful Contacts</td>
+                    <td class="px-4 py-2 border-b">${Math.round(calcState.volume * calcState.currentReachPct)}</td>
+                    <td class="px-4 py-2 border-b font-semibold text-[#5f0957]">${Math.round(calcState.volume * calcState.projectedReachPct)}</td>
+                    <td class="px-4 py-2 border-b text-[#00B4A4]">+${Math.round((calcState.volume * calcState.projectedReachPct) - (calcState.volume * calcState.currentReachPct))}</td>
+                </tr>
+                <tr>
+                    <td class="px-4 py-2 border-b">Staff Hours</td>
+                    <td class="px-4 py-2 border-b">${Math.round(calcState.manualHoursMonthly)}</td>
+                    <td class="px-4 py-2 border-b font-semibold text-[#5f0957]">${Math.round(calcState.automatedHoursMonthly)}</td>
+                    <td class="px-4 py-2 border-b text-[#00B4A4]">-${Math.round(calcState.manualHoursMonthly - calcState.automatedHoursMonthly)}</td>
+                </tr>
+                <tr>
+                    <td class="px-4 py-2">Monthly Revenue</td>
+                    <td class="px-4 py-2">${currencyFmt.format(calcState.revenueManual)}</td>
+                    <td class="px-4 py-2 font-semibold text-[#5f0957]">${currencyFmt.format(calcState.revenueAuto)}</td>
+                    <td class="px-4 py-2 text-[#00B4A4]">+${currencyFmt.format(calcState.revenueIncreaseMonthly)}</td>
+                </tr>
+            `;
+            document.getElementById('pdfTableBody').innerHTML = tableHTML;
+
+            // 2. Capture Charts as Images
+            const element = document.getElementById('pdf-report-container');
+            const innerElement = element.querySelector('.bg-white'); // Target the actual paper element
+            
+            // Store current scroll to restore later
+            const scrollPos = window.scrollY;
+            window.scrollTo(0, 0); // Force scroll to top for clean capture
+
+            // Show the element temporarily on top of everything
+            element.classList.remove('hidden');
+            
+            // Wait for charts to be captured
+            setTimeout(() => {
+                const laborImg = laborChart.toBase64Image();
+                const revImg = revenueChart.toBase64Image();
+                document.getElementById('pdfLaborChartImg').src = laborImg;
+                document.getElementById('pdfRevChartImg').src = revImg;
+
+                const opt = {
+                    margin:       0.5,
+                    filename:     'CipherHealth_TCM_ROI_Analysis.pdf',
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2, useCORS: true }, 
+                    jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+                };
+
+                // Small delay to ensure images render in the DOM
+                setTimeout(() => {
+                    html2pdf().from(innerElement).set(opt).save().then(() => {
+                        element.classList.add('hidden'); // Hide it again
+                        window.scrollTo(0, scrollPos); // Restore scroll
+                        btn.innerHTML = originalBtnText;
+                        btn.disabled = false;
+                    });
+                }, 800);
+            }, 100);
+        }
+
+        // Initialize on load
+        window.onload = calculateROI;
+    </script>
+</body>
+</html>
